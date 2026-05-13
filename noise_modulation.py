@@ -17,7 +17,12 @@ class Modulator:
         delta = source_normalized * amount
         self._buffer = (self._buffer + delta) % 1
 
-    def render_buffer(self) -> np.ndarray:
+    def render_loop(self) -> np.ndarray:
+        rendered = self._buffer * 256
+
+        return rendered.astype(np.uint8)
+
+    def render_ping_pong(self) -> np.ndarray:
         rendered = np.abs(self._buffer * 2 - 1) * 256
 
         return rendered.astype(np.uint8)
@@ -26,6 +31,7 @@ if __name__ == "__main__":
     def parse_args():
         arg_parser = argparse.ArgumentParser()
         arg_parser.add_argument("source", help="path to source video")
+        arg_parser.add_argument("-t", "--type", choices=["loop", "ping_pong"], default="loop", help="modulation type")
         arg_parser.add_argument("-r", "--rate", type=float, default=10, help="modulation rate")
         arg_parser.add_argument("--width", type=int, help="unscaled width of output video (defaults to source width)")
         arg_parser.add_argument("--height", type=int, help="unscaled height of output video (defaults to source height)")
@@ -70,7 +76,15 @@ if __name__ == "__main__":
         cv.imshow("processed source", source)
 
         modulator.modulate(source, modulation_amount)
-        buffer = modulator.render_buffer()
+
+        match args.type:
+            case "loop":
+                buffer = modulator.render_loop()
+            case "ping_pong":
+                buffer = modulator.render_ping_pong()
+            case _:
+                raise ValueError("invalid 'type' argument supplied")
+
         cv.imshow("buffer", cv.resize(buffer, dsize = None, fx = args.scale, fy = args.scale, interpolation = cv.INTER_NEAREST))
 
         cv.waitKey(frame_interval_ms)
