@@ -4,9 +4,9 @@ import sys
 import argparse
 
 class Modulator:
-    def __init__(self, width: int, height: int):
+    def __init__(self, resolution: tuple[int, int]):
         rng = np.random.default_rng()
-        self._buffer = rng.random((width, height))
+        self._buffer = rng.random(resolution)
 
     def modulate(self, source: np.ndarray, amount: float = 1):
         source_resized = cv.resize(source, dsize = self._buffer.shape[:2], interpolation = cv.INTER_NEAREST)
@@ -30,23 +30,16 @@ class Modulator:
 if __name__ == "__main__":
     def parse_args():
         arg_parser = argparse.ArgumentParser()
-        arg_parser.add_argument("source", help="path to source video")
-        arg_parser.add_argument("-t", "--type", choices=["loop", "ping_pong"], default="loop", help="modulation type")
-        arg_parser.add_argument("-r", "--rate", type=float, default=10, help="modulation rate")
-        arg_parser.add_argument("--width", type=int, help="unscaled width of output video (defaults to source width)")
-        arg_parser.add_argument("--height", type=int, help="unscaled height of output video (defaults to source height)")
-        arg_parser.add_argument("--scale", type=float, default=1, help="scale factor to apply to output video")
-        arg_parser.add_argument("--fps", type=int, help="framerate of output video (defaults to source framerate)")
+        arg_parser.add_argument("source", help = "path to source video")
+        arg_parser.add_argument("-t", "--type", choices = ["loop", "ping_pong"], default = "loop", help = "modulation type")
+        arg_parser.add_argument("-r", "--rate", type = float, default = 10, help = "modulation rate")
+        arg_parser.add_argument("--resolution", type = int, nargs = 2, help = "resolution of the internal video buffer (defaults to source resolution)")
+        arg_parser.add_argument("--output-unscaled", action = "store_true", help = "outputs video at internal buffer resolution instead of source resolution")
+        arg_parser.add_argument("--fps", type = int, help = "framerate of output video (defaults to source framerate)")
         args = arg_parser.parse_args()
 
         if args.rate is not None and args.rate <= 0:
             raise ValueError("'rate' argument must be positive")
-        if args.width is not None and args.width < 1:
-            raise ValueError("'width' argument must be positive")
-        if args.height is not None and args.height < 1:
-            raise ValueError("'height' argument must be positive")
-        if args.scale is not None and args.scale < 1:
-            raise ValueError("'scale' argument must be positive")
         if args.fps is not None and args.fps < 1:
             raise ValueError("'fps' argument must be positive")
 
@@ -59,18 +52,20 @@ if __name__ == "__main__":
     cv.imshow("source", source_raw)
 
     source = cv.cvtColor(source_raw, cv.COLOR_RGB2GRAY)
+    source_resolution = (source.shape[0], source.shape[1])
 
-    if args.width is None:
-        args.width = source.shape[0]
-    if args.height is None:
-        args.height = source.shape[1]
-    if args.fps is None:
-        args.fps = 60 # TODO: replace with source framerate
+    resolution = tuple(args.resolution)
+    if resolution is None:
+        resolution = source_resolution
 
-    modulator = Modulator(args.width, args.height)
+    fps = args.fps
+    if fps is None:
+        fps = 60 # TODO: replace with source framerate
 
-    frame_interval_ms = int(1000 / args.fps)
-    modulation_amount = args.rate / args.fps
+    modulator = Modulator(resolution)
+
+    frame_interval_ms = int(1000 / fps)
+    modulation_amount = args.rate / fps
 
     while True:
         cv.imshow("processed source", source)
@@ -85,6 +80,9 @@ if __name__ == "__main__":
             case _:
                 raise ValueError("invalid 'type' argument supplied")
 
-        cv.imshow("buffer", cv.resize(buffer, dsize = None, fx = args.scale, fy = args.scale, interpolation = cv.INTER_NEAREST))
+        if not args.output_unscaled:
+            buffer = cv.resize(buffer, dsize = source_resolution, interpolation = cv.INTER_NEAREST)
+
+        cv.imshow("buffer", buffer)
 
         cv.waitKey(frame_interval_ms)
