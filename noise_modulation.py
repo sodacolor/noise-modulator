@@ -5,7 +5,8 @@ import argparse
 
 class Modulator:
     def __init__(self, width: int, height: int):
-        self._buffer = np.full((width, height), 0.5, float)
+        rng = np.random.default_rng()
+        self._buffer = rng.random((width, height))
 
     def modulate(self, source: np.ndarray, amount: float = 1):
         source_resized = cv.resize(source, dsize = self._buffer.shape[:2], interpolation = cv.INTER_NEAREST)
