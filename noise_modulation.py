@@ -2,6 +2,7 @@ import cv2 as cv
 import numpy as np
 import sys
 import argparse
+import time
 
 class Modulator:
     def __init__(self, resolution: tuple[int, int]):
@@ -64,10 +65,12 @@ if __name__ == "__main__":
 
     modulator = Modulator(resolution)
 
-    frame_interval_ms = int(1000 / fps)
+    frame_interval_ms = 1000 / fps
     modulation_amount = args.rate / fps
 
     while True:
+        frame_start_time = time.perf_counter()
+
         cv.imshow("processed source", source)
 
         modulator.modulate(source, modulation_amount)
@@ -85,4 +88,6 @@ if __name__ == "__main__":
 
         cv.imshow("buffer", buffer)
 
-        cv.waitKey(frame_interval_ms)
+        frame_time_ms = (time.perf_counter() - frame_start_time) * 1000
+        wait_time = max(round(frame_interval_ms - frame_time_ms), 1)
+        cv.waitKey(wait_time)
