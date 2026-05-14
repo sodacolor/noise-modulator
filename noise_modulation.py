@@ -41,11 +41,10 @@ def render_image(args):
     # load image from disk
     source = cv.imread(args.source)
     if source is None:
-        sys.exit("failed to load source image")
-
-    source_file_name = os.path.basename(args.source)
+        raise RuntimeError("failed to load source image")
     source_resolution = (source.shape[0], source.shape[1])
 
+    source_file_name = os.path.basename(args.source)
     if __name__ == "__main__":
         print(f"loaded source image ({source_file_name})")
 
@@ -97,7 +96,69 @@ def render_image(args):
         cv.destroyWindow(preview_window_title)
 
 def render_video(args):
-    pass
+    # load video from disk
+    source = cv.VideoCapture(args.source)
+    if not source.isOpened():
+        raise RuntimeError("failed to load source video")
+    source_resolution = (int(source.get(cv.CAP_PROP_FRAME_WIDTH)), int(source.get(cv.CAP_PROP_FRAME_HEIGHT)))
+    fps = int(source.get(cv.CAP_PROP_FPS))
+    source_duration = int(source.get(cv.CAP_PROP_FRAME_COUNT)) / fps
+
+    source_file_name = os.path.basename(args.source)
+    if __name__ == "__main__":
+        print(f"loaded source video ({source_file_name})")
+
+    # set unspecified arguments to default values
+    resolution = source_resolution if args.resolution is None else tuple(args.resolution)
+    duration = source_duration if args.duration is None else args.duration
+    output_file_path = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S.mp4") if args.out is None else args.out
+
+    # initialize video writer
+    output_resolution = resolution if args.output_unscaled else source_resolution
+    output = cv.VideoWriter(output_file_path, cv.VideoWriter.fourcc(*"mp4v"), fps, output_resolution)
+
+    modulator = Modulator(resolution)
+    modulation_amount = args.rate / fps
+
+    preview_window_title = f"render preview ({source_file_name})"
+
+    frame_count = int(duration * fps)
+    with alive_progress.alive_bar(frame_count, title = "rendering...") as progress_bar:
+        for i in range(frame_count):
+            ret, frame = source.read()
+            if not ret: # if the source has closed unexpectedly...
+                raise RuntimeError("source video closed unexpectedly")
+
+            modulator.modulate(frame, modulation_amount)
+
+            match args.type:
+                case "loop":
+                    frame = modulator.render_loop()
+                case "ping_pong":
+                    frame = modulator.render_ping_pong()
+                case _:
+                    raise ValueError(f"invalid 'type' argument supplied ('{args.type}')")
+
+            # if necessary, resize frame to match output resolution
+            if not (frame.shape[0], frame.shape[1]) == output_resolution:
+                frame = cv.resize(frame, dsize = output_resolution, interpolation = cv.INTER_NEAREST)
+
+            # if enabled, update render preview
+            if args.preview:
+                cv.imshow(preview_window_title, frame)
+                cv.waitKey(1)
+
+            output.write(frame)
+
+            progress_bar()
+        else: # doesn't run if the loop is broken out of
+            progress_bar.text("...done!")
+
+    # clean up preview window
+    if args.preview:
+        cv.destroyWindow(preview_window_title)
+
+    source.release()
 
 if __name__ == "__main__":
     alive_progress.config_handler.set_global(spinner = False, receipt_text = True)
@@ -110,7 +171,7 @@ if __name__ == "__main__":
     arg_parser.add_argument("--resolution", nargs = 2, metavar = ("WIDTH", "HEIGHT"), type = int, help = "resolution of the internal video buffer (defaults to source resolution)")
     arg_parser.add_argument("-o", "--out", help = "output file name (defaults to 'YYYY-MM-DD_HH-MM-SS.mp4')")
     arg_parser.add_argument("--output-unscaled", action = "store_true", help = "output video at internal buffer resolution instead of source resolution")
-    arg_parser.add_argument("-f", "--fps", type = int, help = "framerate of output video (defaults to 60 for image sources and source framerate for video sources)")
+    arg_parser.add_argument("-f", "--fps", type = int, help = "framerate of output video (default is 60, only applies to image sources)")
     arg_parser.add_argument("-d", "--duration", type = float, help = "duration of output video (defaults to 5 for image sources and source duration for video sources)")
     arg_parser.add_argument("-p", "--preview", action = "store_true", help = "show a real-time rendering preview (note: significant performance impact)")
     args = arg_parser.parse_args()
