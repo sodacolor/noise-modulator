@@ -3,13 +3,16 @@ import numpy as np
 import sys
 import argparse
 import time
+import os
 
 class Modulator:
     def __init__(self, resolution: tuple[int, int]):
+        # initialize buffer with random values between 0 and 1
         rng = np.random.default_rng()
         self._buffer = rng.random(resolution)
 
     def modulate(self, source: np.ndarray, amount: float = 1):
+        # resize modulation source to match internal buffer
         source_resized = cv.resize(source, dsize = self._buffer.shape[:2], interpolation = cv.INTER_NEAREST)
         if source_resized.shape != self._buffer.shape: # this checks for different numbers of color channels
             raise ValueError("source shape doesn't match buffer")
@@ -28,40 +31,30 @@ class Modulator:
 
         return rendered.astype(np.uint8)
 
-if __name__ == "__main__":
-    def parse_args():
-        arg_parser = argparse.ArgumentParser()
-        arg_parser.add_argument("source", help = "path to source video")
-        arg_parser.add_argument("-t", "--type", choices = ["loop", "ping_pong"], default = "loop", help = "modulation type")
-        arg_parser.add_argument("-r", "--rate", type = float, default = 10, help = "modulation rate")
-        arg_parser.add_argument("--resolution", type = int, nargs = 2, help = "resolution of the internal video buffer (defaults to source resolution)")
-        arg_parser.add_argument("--output-unscaled", action = "store_true", help = "outputs video at internal buffer resolution instead of source resolution")
-        arg_parser.add_argument("--fps", type = int, help = "framerate of output video (defaults to source framerate)")
-        args = arg_parser.parse_args()
-
-        if args.rate is not None and args.rate <= 0:
-            raise ValueError("'rate' argument must be positive")
-        if args.fps is not None and args.fps < 1:
-            raise ValueError("'fps' argument must be positive")
-
-        return args
-    args = parse_args()
-
-    source_raw = cv.imread(cv.samples.findFile(args.source))
+def render_image(args):
+    # load image from disk
+    source_raw = cv.imread(args.source)
     if source_raw is None:
-        sys.exit("failed to read source video")
-    cv.imshow("source", source_raw)
+        sys.exit("failed to load source image")
 
+    # process source image
     source = cv.cvtColor(source_raw, cv.COLOR_RGB2GRAY)
     source_resolution = (source.shape[0], source.shape[1])
 
-    resolution = tuple(args.resolution)
-    if resolution is None:
+    if args.resolution is None:
         resolution = source_resolution
+    else:
+        resolution = tuple(args.resolution)
 
-    fps = args.fps
-    if fps is None:
-        fps = 60 # TODO: replace with source framerate
+    if args.fps is None:
+        fps = 60
+    else:
+        fps = args.fps
+
+    if args.duration is None:
+        duration = 5
+    else:
+        duration = args.duration
 
     modulator = Modulator(resolution)
 
@@ -70,8 +63,6 @@ if __name__ == "__main__":
 
     while True:
         frame_start_time = time.perf_counter()
-
-        cv.imshow("processed source", source)
 
         modulator.modulate(source, modulation_amount)
 
@@ -83,11 +74,48 @@ if __name__ == "__main__":
             case _:
                 raise ValueError("invalid 'type' argument supplied")
 
-        if not args.output_unscaled:
+        # unless unnecessary or told otherwise, resize modulator output to match source resolution
+        if not ((buffer.shape[0], buffer.shape[1]) == source_resolution or args.output_unscaled):
             buffer = cv.resize(buffer, dsize = source_resolution, interpolation = cv.INTER_NEAREST)
 
-        cv.imshow("buffer", buffer)
+        cv.imshow("preview", buffer)
 
         frame_time_ms = (time.perf_counter() - frame_start_time) * 1000
         wait_time = max(round(frame_interval_ms - frame_time_ms), 1)
         cv.waitKey(wait_time)
+
+def render_video(args):
+    pass
+
+if __name__ == "__main__":
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument("source", help = "path to source image or video")
+    arg_parser.add_argument("-t", "--type", choices = ["loop", "ping_pong"], default = "loop", help = "modulation type")
+    arg_parser.add_argument("-r", "--rate", type = float, default = 10, help = "modulation rate (default is 10)")
+    arg_parser.add_argument("--resolution", nargs = 2, metavar = ("WIDTH", "HEIGHT"), type = int, help = "resolution of the internal video buffer (defaults to source resolution)")
+    arg_parser.add_argument("--output-unscaled", action = "store_true", help = "outputs video at internal buffer resolution instead of source resolution")
+    arg_parser.add_argument("-f", "--fps", type = int, help = "framerate of output video (defaults to 60 for image sources and source framerate for video sources)")
+    arg_parser.add_argument("-d", "--duration", type = float, help = "duration of output video (defaults to 5 for image sources and source duration for video sources)")
+    args = arg_parser.parse_args()
+
+    if args.rate is not None and args.rate <= 0:
+        raise ValueError("'rate' argument must be positive")
+    if args.fps is not None and args.fps < 1:
+        raise ValueError("'fps' argument must be positive")
+    if args.duration is not None and args.duration <= 0:
+        raise ValueError("'duration' argument must be positive")
+
+    # determine source type
+    source_extension = os.path.splitext(args.source)
+    match source_extension:
+        case "jpg" | "jpeg" | "png" | "bmp" | "gif":
+            source_type = "image"
+        case "mp4" | "mov" | "avi" | "flv" | "webm":
+            source_type = "video"
+        case _:
+            raise ValueError("unsupported source file type")
+
+    if source_type == "image":
+        render_image(args)
+    elif source_type == "video":
+        render_video(args)
