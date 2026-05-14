@@ -13,6 +13,8 @@ def render_image(args):
     source = cv.imread(args.source)
     if source is None:
         raise RuntimeError("failed to load source image")
+
+    # extract source metadata
     source_resolution = (source.shape[0], source.shape[1])
 
     if __name__ == "__main__":
@@ -34,6 +36,8 @@ def render_video(args):
     source = cv.VideoCapture(args.source)
     if not source.isOpened():
         raise RuntimeError("failed to load source video")
+
+    # extract source metadata
     source_resolution = (int(source.get(cv.CAP_PROP_FRAME_WIDTH)), int(source.get(cv.CAP_PROP_FRAME_HEIGHT)))
     fps = source.get(cv.CAP_PROP_FPS)
     source_duration = source.get(cv.CAP_PROP_FRAME_COUNT) / fps
@@ -67,7 +71,7 @@ def render_video(args):
 def render(frames, fps: float, duration: float, args):
     # extract source resolution from first frame
     initial_frame = next(frames)
-    source_resolution = tuple(initial_frame.shape[:2])
+    source_resolution = tuple(initial_frame.shape[1::-1])
 
     # initialize modulator
     buffer_resolution = tuple([math.ceil(x * (args.resolution_scale / 100)) for x in source_resolution]) # apply resolution scaling
