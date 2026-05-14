@@ -62,7 +62,7 @@ def render_image(args):
     modulator = Modulator(resolution)
     modulation_amount = args.rate / fps
 
-    preview_window_title = "render preview ({source_file_name})"
+    preview_window_title = f"render preview ({source_file_name})"
 
     frame_count = int(duration * fps)
     with alive_progress.alive_bar(frame_count, title = "rendering...") as progress_bar:
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     match source_extension:
         case ".jpg" | ".jpeg" | ".png" | ".bmp" | ".gif":
             source_type = "image"
-        case ".mp4" | ".mov" | ".avi" | ".flv" | ".webm":
+        case ".mp4" | ".mov":
             source_type = "video"
         case _:
             raise ValueError(f"unsupported source file type ({source_extension})")
