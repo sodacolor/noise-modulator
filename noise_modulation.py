@@ -1,11 +1,11 @@
 import math
 import cv2 as cv
 import numpy as np
-import sys
 import argparse
 import os
 import datetime
 import alive_progress
+import pathlib
 
 class Modulator:
     def __init__(self, resolution: tuple[int, int]):
@@ -46,7 +46,18 @@ def render_image(args):
     # set unspecified arguments to default values
     fps = 60 if args.fps is None else args.fps
     duration = 5 if args.duration is None else args.duration
-    output_file_path = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S.mp4") if args.out is None else args.out
+    if args.out is None:
+        # create renders folder at script location if necessary
+        script_path = pathlib.Path(__file__).resolve()
+        renders_dir_path = script_path.parent / "renders"
+        renders_dir_path.mkdir(exist_ok = True)
+
+        now = datetime.datetime.now()
+        output_file_name = now.strftime("%Y-%m-%d_%H-%M-%S.mp4")
+
+        output_file_path = renders_dir_path / output_file_name
+    else:
+        output_file_path = args.out
 
     # initialize video writer
     buffer_resolution = tuple(map(lambda x: math.ceil(x * (args.resolution_scale / 100)), source_resolution))
@@ -103,7 +114,18 @@ def render_video(args):
 
     # set unspecified arguments to default values
     duration = source_duration if args.duration is None else args.duration
-    output_file_path = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S.mp4") if args.out is None else args.out
+    if args.out is None:
+        # create renders folder at script location if necessary
+        script_path = pathlib.Path(__file__).resolve()
+        renders_dir_path = script_path.parent / "renders"
+        renders_dir_path.mkdir(exist_ok = True)
+
+        now = datetime.datetime.now()
+        output_file_name = now.strftime("%Y-%m-%d_%H-%M-%S.mp4")
+
+        output_file_path = renders_dir_path / output_file_name
+    else:
+        output_file_path = args.out
 
     # initialize modulator
     buffer_resolution = tuple(map(lambda x: math.ceil(x * (args.resolution_scale / 100)), source_resolution))
@@ -164,7 +186,7 @@ if __name__ == "__main__":
     arg_parser.add_argument("-t", "--type", choices = ["loop", "ping_pong"], default = "loop", help = "modulation type")
     arg_parser.add_argument("-r", "--rate", type = float, default = 10, help = "modulation rate (default is 10)")
     arg_parser.add_argument("-R", "--resolution-scale", type = float, default = 50, help = "resolution of the internal video buffer compared to source resolution in percent (default is 50%%, max 100\\%%)")
-    arg_parser.add_argument("-o", "--out", help = "output file name (defaults to 'YYYY-MM-DD_HH-MM-SS.mp4')")
+    arg_parser.add_argument("-o", "--out", help = "output file path (defaults to 'renders/YYYY-MM-DD_HH-MM-SS.mp4')")
     arg_parser.add_argument("--output-unscaled", action = "store_true", help = "output video at internal buffer resolution instead of source resolution")
     arg_parser.add_argument("-f", "--fps", type = int, help = "framerate of output video (default is 60, only applies to image sources)")
     arg_parser.add_argument("-d", "--duration", type = float, help = "duration of output video (defaults to 5 for image sources and source duration for video sources)")
