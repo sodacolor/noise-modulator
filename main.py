@@ -89,20 +89,26 @@ def render(frames, fps: float, duration: float, args):
         renders_dir_path.mkdir(exist_ok = True)
 
         now = datetime.datetime.now()
-        output_file_name = now.strftime("%Y-%m-%d_%H-%M-%S.mp4")
+        now_str = now.strftime("%Y-%m-%d_%H-%M-%S")
+        output_name = now_str if args.sequence else now_str + ".mp4"
 
-        output_file_path = renders_dir_path / output_file_name
+        output_path = renders_dir_path / output_name
     else:
-        output_file_path = args.out
-        output_file_name = os.path.basename(output_file_path)
+        output_path = args.out
+        output_name = os.path.basename(output_path)
+
+    # if outputting as a PNG sequence, create a folder for the output
+    if args.sequence:
+        output_path.mkdir(exist_ok = True)
 
     # initialize video writer
-    codec = cv.VideoWriter.fourcc(*args.codec.lower())
     output_resolution = buffer_resolution if args.output_unscaled else source_resolution
-    output = cv.VideoWriter(output_file_path, codec, fps, output_resolution)
+    if not args.sequence:
+        codec = cv.VideoWriter.fourcc(*args.codec.lower())
+        video_writer = cv.VideoWriter(output_path, codec, fps, output_resolution)
 
     if __name__ == "__main__":
-        print(f"render: {output_file_name} | {"x".join(map(str, output_resolution))} | {fps:.0f} fps | {duration:.1f}s")
+        print(f"render: {output_name} | {"x".join(map(str, output_resolution))} | {fps:.0f} fps | {duration:.1f}s")
 
     preview_window_title = f"render preview ({os.path.basename(args.source)})"
 
@@ -138,15 +144,21 @@ def render(frames, fps: float, duration: float, args):
                     cv.imshow(preview_window_title, frame)
                     cv.waitKey(1)
 
-                output.write(frame)
+                if args.sequence:
+                    output_file_name = f"{output_name}_{i}.png"
+                    output_file_path = output_path / output_file_name
+                    cv.imwrite(output_file_path, frame)
+                else:
+                    video_writer.write(frame)
 
                 progress_bar()
             else: # doesn't run if the loop is broken out of
                 progress_bar.text("...done!")
     # if an error occurs or the user interrupts the render, clean up incomplete output file
     except (Exception, KeyboardInterrupt) as e:
-        output.release()
-        output_file_path.unlink(missing_ok=True)
+        if not args.sequence:
+            video_writer.release()
+            output_path.unlink(missing_ok=True)
 
         raise e
 
@@ -155,7 +167,9 @@ def render(frames, fps: float, duration: float, args):
         cv.destroyWindow(preview_window_title)
 
     frames.close()
-    output.release()
+
+    if not args.sequence:
+        video_writer.release()
 
 if __name__ == "__main__":
     # parse command line arguments
@@ -166,7 +180,10 @@ if __name__ == "__main__":
     arg_parser.add_argument("-R", "--resolution-scale", type = float, default = 50, \
                             help = "resolution of the internal video buffer compared to source resolution in percent (default is 50%%)")
     arg_parser.add_argument("-o", "--out", help = "output file path (defaults to 'renders/YYYY-MM-DD_HH-MM-SS.mp4')")
-    arg_parser.add_argument("-c", "--codec", default = "h264", help = "FourCC code of output codec to use (default is H.264)")
+    arg_parser.add_argument("-s", "--sequence", action = "store_true", \
+                            help = "output as a sequence of PNG images instead of a single video file")
+    arg_parser.add_argument("-c", "--codec", default = "avc1", \
+                            help = "FourCC code of output codec to use (default is H.264, only applies when video output is enabled)")
     arg_parser.add_argument("--output-unscaled", action = "store_true", \
                             help = "output video at internal buffer resolution instead of source resolution")
     arg_parser.add_argument("-f", "--fps", type = float, \
