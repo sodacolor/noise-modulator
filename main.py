@@ -97,8 +97,9 @@ def render(frames, fps: float, duration: float, args):
         output_file_name = os.path.basename(output_file_path)
 
     # initialize video writer
+    codec = cv.VideoWriter.fourcc(*args.codec.lower())
     output_resolution = buffer_resolution if args.output_unscaled else source_resolution
-    output = cv.VideoWriter(output_file_path, cv.VideoWriter.fourcc(*"mp4v"), fps, output_resolution)
+    output = cv.VideoWriter(output_file_path, codec, fps, output_resolution)
 
     if __name__ == "__main__":
         print(f"render: {output_file_name} | {"x".join(map(str, output_resolution))} | {fps:.0f} fps | {duration:.1f}s")
@@ -165,6 +166,7 @@ if __name__ == "__main__":
     arg_parser.add_argument("-R", "--resolution-scale", type = float, default = 50, \
                             help = "resolution of the internal video buffer compared to source resolution in percent (default is 50%%)")
     arg_parser.add_argument("-o", "--out", help = "output file path (defaults to 'renders/YYYY-MM-DD_HH-MM-SS.mp4')")
+    arg_parser.add_argument("-c", "--codec", default = "h264", help = "FourCC code of output codec to use (default is H.264)")
     arg_parser.add_argument("--output-unscaled", action = "store_true", \
                             help = "output video at internal buffer resolution instead of source resolution")
     arg_parser.add_argument("-f", "--fps", type = float, \
