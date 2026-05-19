@@ -94,7 +94,7 @@ def render(frames, fps: float, duration: float, args):
 
         output_path = renders_dir_path / output_name
     else:
-        output_path = args.out
+        output_path = pathlib.Path(args.out).resolve()
         output_name = os.path.basename(output_path)
 
     # if outputting as a PNG sequence, create a folder for the output
